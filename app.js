@@ -7,7 +7,7 @@ const SUPABASE_URL = 'https://zihofwyeyhvnhatwtmju.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_OzfTQtRZ7hbzJ5ZJU7H3wQ_-xOYep1l';
 
 // Initialize the Supabase client
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ============== TEST MODE ==============
 // Enable by adding ?test=1 to the URL.
@@ -15,7 +15,7 @@ const TEST_MODE = new URLSearchParams(location.search).get('test') === '1';
 if (TEST_MODE) document.getElementById('test-panel').classList.add('visible');
 
 // ============== APP CONSTANTS ==============
-const WELCOME_MESSAGE = "We're firing up the grill for Elena's birthday and have plenty to go around. No need to bring any gifts, your company is the best gift! If you'd like to bring a dish or snack, anything shareable would be a hit with everyone :)";
+const WELCOME_MESSAGE = "We're firing up the grill for Elena's birthday and have plenty to go around. No need to bring any gifts, your company is all we need! If you'd like to bring a dish or snack, anything shareable would be a hit :)";
 
 const MAX_GUESTS = 50;
 const TOKEN_KEY = 'bbq:my-token';
@@ -393,7 +393,7 @@ document.getElementById('bbq-app').addEventListener('click', (e) => {
 
 // ============== SUPABASE STORAGE ==============
 async function loadGuests() {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('rsvps')
     .select('*')
     .order('created_at', { ascending: true });
@@ -403,7 +403,7 @@ async function loadGuests() {
 }
 
 async function saveNewGuest(guest) {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('rsvps')
     .insert([guest])
     .select()
@@ -414,7 +414,7 @@ async function saveNewGuest(guest) {
 }
 
 async function deleteMyGuest() {
-  const { error } = await supabase
+  const { error } = await db
     .from('rsvps')
     .delete()
     .eq('token', myToken);
@@ -423,7 +423,7 @@ async function deleteMyGuest() {
 }
 
 async function deleteTestChicks() {
-  const { error } = await supabase
+  const { error } = await db
     .from('rsvps')
     .delete()
     .eq('is_test', true);
