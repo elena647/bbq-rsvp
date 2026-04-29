@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Elena's Birthday BBQ — RSVP</title>
+  <meta name="description" content="You're invited to Elena's birthday BBQ on Saturday, July 18th, 2026 at 5:00 PM." />
+
+  <!-- Social link preview -->
+  <meta property="og:title" content="Elena's Birthday BBQ — RSVP" />
+  <meta property="og:description" content="Saturday, July 18th, 2026 · 5:00 PM. RSVP and pick your chick!" />
+  <meta property="og:type" content="website" />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="bbq-app">
+  <img class="scene-bg" id="scene-bg" src="bbq_background.jpg" alt="Backyard scene" />
+  <div class="guest-layer" id="guest-layer"></div>
+
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Loading the yard...</div>
+  </div>
+
+  <div class="error-overlay" id="error-overlay">
+    <div class="error-card">
+      <p class="error-title">Couldn't load the yard</p>
+      <p class="error-text" id="error-text">Something went wrong. Please refresh and try again.</p>
+      <button class="error-retry-btn" onclick="location.reload()">Retry</button>
+    </div>
+  </div>
+
+  <div class="invite-card">
+    <p class="invite-title">You're invited to Elena's birthday BBQ</p>
+    <p class="invite-meta">Saturday, July 18th, 2026 · 5:00 PM<br/>DM Elena for the address</p>
+    <div class="btn-row" id="btn-row">
+      <button class="rsvp-cta" id="open-modal-btn">RSVP</button>
+    </div>
+  </div>
+
+  <!-- Test panel — only visible with ?test=1 in the URL -->
+  <div class="test-panel" id="test-panel">
+    <div class="test-panel-label">🧪 TEST MODE</div>
+    <div class="test-count" id="test-count">0 chicks</div>
+    <button class="test-btn" id="add-test-chick">+ Add random chick</button>
+    <button class="test-btn" id="add-five-chicks">+ Add 5 chicks</button>
+    <button class="test-btn danger" id="clear-test-chicks">Clear test chicks</button>
+  </div>
+
+  <div class="modal-backdrop" id="modal-backdrop">
+    <div class="modal-card">
+      <button class="modal-close" id="modal-close-btn" aria-label="Close">×</button>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Supabase client library, loaded from CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Our app code -->
+<script src="app.js"></script>
+
+</body>
+</html>
