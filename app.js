@@ -978,6 +978,7 @@ window.addEventListener('blur', () => keysHeld.clear());
 
 // ============== MASCOT CHICK ==============
 function showMascot() {
+  if (window.innerWidth >= 768) return;
   const app = document.getElementById('bbq-app');
   const wrap = document.createElement('div');
   wrap.className = 'mascot-wrap';
