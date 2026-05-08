@@ -999,8 +999,8 @@ function showMascot() {
   wrap.addEventListener('transitionstart', () => {
     chickEl.classList.add('walking');
   });
-  wrap.addEventListener('transitionend', () => {
-    if (wrap.parentNode) wrap.remove();
+  wrap.addEventListener('transitionend', (e) => {
+    if (e.target === wrap && e.propertyName === 'left') wrap.remove();
   });
 
   let dismissed = false;

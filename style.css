@@ -554,9 +554,9 @@ html, body {
   position: absolute;
   transform: translateX(-50%);
   transition: left 3s ease-in-out;
-  width: 11%;
-  min-width: 60px;
-  max-width: 120px;
+  width: 18%;
+  min-width: 120px;
+  max-width: 240px;
   z-index: 5;
   pointer-events: none;
 }
