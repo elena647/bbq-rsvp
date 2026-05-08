@@ -23,8 +23,8 @@ const TOKEN_KEY = 'bbq:my-token';
 // ============== AVATAR DEFINITIONS ==============
 const Y_OFFSET = 8;
 
-function chickBase() {
-  const Y = '#F4E04A', YS = '#D9C027', O = '#7A2A2A',
+function chickBase(overrides) {
+  const Y = overrides?.body || '#F4E04A', YS = overrides?.shadow || '#D9C027', O = '#7A2A2A',
         P = '#E8A878', PS = '#B8784A', C = '#E89898', E = '#5A1818';
   const o = Y_OFFSET;
   return [
@@ -210,6 +210,15 @@ function renderAvatar(targetEl, choice) {
   const inner = html.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '');
   targetEl.innerHTML = inner;
   targetEl.setAttribute('shape-rendering', 'crispEdges');
+}
+
+function renderMascotSvg() {
+  const pixels = chickBase({ body: '#FFFFFF', shadow: '#E0E0E0' });
+  let body = '';
+  for (const [x, y, w, h, c] of pixels) {
+    body += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${c}"/>`;
+  }
+  return `<svg viewBox="0 0 32 40" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">${body}</svg>`;
 }
 
 // ============== STATE ==============
@@ -555,6 +564,18 @@ function renderGuests() {
     if (g.token === myToken) {
       wrap.classList.add('my-chick');
     }
+
+    wrap.addEventListener('transitionstart', () => {
+      if (!wrap.classList.contains('dragging')) {
+        wrap.querySelector('.guest')?.classList.add('walking');
+      }
+    });
+    wrap.addEventListener('transitionend', () => {
+      wrap.querySelector('.guest')?.classList.remove('walking');
+    });
+    wrap.addEventListener('transitioncancel', () => {
+      wrap.querySelector('.guest')?.classList.remove('walking');
+    });
 
     layer.appendChild(wrap);
     startWandering(g.token, wrap);
@@ -967,6 +988,47 @@ document.addEventListener('keyup', (e) => {
 
 window.addEventListener('blur', () => keysHeld.clear());
 
+// ============== MASCOT CHICK ==============
+function showMascot() {
+  const app = document.getElementById('bbq-app');
+  const wrap = document.createElement('div');
+  wrap.className = 'mascot-wrap';
+  wrap.style.left = '50%';
+  wrap.style.top = '45%';
+
+  const chickEl = document.createElement('div');
+  chickEl.className = 'guest';
+  chickEl.innerHTML = renderMascotSvg();
+
+  const bubble = document.createElement('div');
+  bubble.className = 'mascot-bubble';
+  bubble.textContent = 'Pssst. Turn your phone to landscape or try on desktop for the best experience.';
+
+  wrap.appendChild(bubble);
+  wrap.appendChild(chickEl);
+  app.appendChild(wrap);
+
+  wrap.addEventListener('transitionstart', () => {
+    chickEl.classList.add('walking');
+  });
+  wrap.addEventListener('transitionend', () => {
+    if (wrap.parentNode) wrap.remove();
+  });
+
+  let dismissed = false;
+  function dismiss() {
+    if (dismissed) return;
+    dismissed = true;
+    document.removeEventListener('click', dismiss, true);
+    document.removeEventListener('touchend', dismiss, true);
+    bubble.classList.add('fading');
+    wrap.style.left = '-15%';
+  }
+
+  document.addEventListener('click', dismiss, true);
+  document.addEventListener('touchend', dismiss, true);
+}
+
 // ============== INIT ==============
 (async function init() {
   try {
@@ -975,6 +1037,7 @@ window.addEventListener('blur', () => keysHeld.clear());
     renderGuests();
     updateButtons();
     document.getElementById('loading-overlay').classList.add('hidden');
+    showMascot();
   } catch (err) {
     console.error('Init failed:', err);
     showError("Couldn't connect to the database. Please check your internet connection and refresh.");

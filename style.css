@@ -39,7 +39,7 @@ html, body {
 .guest-wrap {
   position: absolute;
   transform: translateX(-50%);
-  transition: left 3s ease-in-out, top 3s ease-in-out;
+  transition: left 5s ease-in-out, top 5s ease-in-out;
 }
 .guest {
   image-rendering: pixelated;
@@ -53,6 +53,14 @@ html, body {
 @keyframes bob {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-2px); }
+}
+@keyframes walk-rock {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-3px) rotate(4deg); }
+}
+.guest.walking {
+  animation: walk-rock 0.3s ease-in-out infinite !important;
+  animation-delay: 0s !important;
 }
 
 .guest-name {
@@ -539,6 +547,49 @@ html, body {
   cursor: pointer;
   margin-top: 8px;
   text-decoration: underline;
+}
+
+/* ===== MASCOT ===== */
+.mascot-wrap {
+  position: absolute;
+  transform: translateX(-50%);
+  transition: left 5s ease-in-out;
+  width: 11%;
+  min-width: 60px;
+  max-width: 120px;
+  z-index: 5;
+  pointer-events: none;
+}
+.mascot-bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #FBF6E9;
+  border: 2px solid #7A4018;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #4A2410;
+  white-space: normal;
+  width: max-content;
+  max-width: 280px;
+  line-height: 1.5;
+  box-shadow: 0 3px 0 rgba(74, 36, 16, 0.35), 0 6px 12px rgba(0, 0, 0, 0.2);
+  transition: opacity 0.3s;
+  text-align: center;
+}
+.mascot-bubble::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #7A4018;
+}
+.mascot-bubble.fading {
+  opacity: 0;
 }
 
 /* ===== DRAG & TAP ANIMATIONS ===== */
