@@ -242,15 +242,16 @@ const SAFE_BOTTOM_MARGIN = 4;
 const YARD = {
   xMin: SAFE_X_MARGIN,
   xMax: 100 - SAFE_X_MARGIN,
-  yMin: 66,
+  yMin: 55,
   yMax: 88,
 };
 const PLANTER = { xMin: 38, xMax: 62, yMax: 80 };
+function isMobile() { return window.innerWidth < 768; }
 const MIN_DIST = 11;
 
 function isValidSpot(x, y, ignoreToken) {
   if (x < YARD.xMin || x > YARD.xMax || y < YARD.yMin || y > YARD.yMax) return false;
-  if (x > PLANTER.xMin && x < PLANTER.xMax && y < PLANTER.yMax) return false;
+  if (!isMobile() && x > PLANTER.xMin && x < PLANTER.xMax && y < PLANTER.yMax) return false;
   for (const g of guests) {
     if (g.token === ignoreToken) continue;
     const home = homePosition(g);
@@ -294,11 +295,9 @@ function clamp(val, min, max) {
 function pickWanderTarget(home) {
   const angle = Math.random() * Math.PI * 2;
   const dist = Math.random() * WANDER_RADIUS;
-  let x = home.x + Math.cos(angle) * dist;
-  let y = home.y + Math.sin(angle) * dist;
-  x = clamp(x, YARD.xMin, YARD.xMax);
-  y = clamp(y, YARD.yMin, YARD.yMax);
-  return { x, y };
+  const x = home.x + Math.cos(angle) * dist;
+  const y = home.y + Math.sin(angle) * dist;
+  return constrainToYard(x, y, home.x, home.y);
 }
 
 function startWandering(token, wrapEl) {
@@ -353,14 +352,28 @@ function getPointerPos(e) {
   return { pageX: t.pageX, pageY: t.pageY };
 }
 
-function constrainToYard(x, y) {
+function constrainToYard(x, y, prevX, prevY) {
   x = clamp(x, YARD.xMin, YARD.xMax);
   y = clamp(y, YARD.yMin, YARD.yMax);
-  if (x > PLANTER.xMin && x < PLANTER.xMax && y < PLANTER.yMax) {
-    const dL = x - PLANTER.xMin, dR = PLANTER.xMax - x, dB = PLANTER.yMax - y;
-    if (dB <= dL && dB <= dR) y = PLANTER.yMax;
-    else if (dL <= dR) x = PLANTER.xMin;
-    else x = PLANTER.xMax;
+  if (!isMobile() && x > PLANTER.xMin && x < PLANTER.xMax && y < PLANTER.yMax) {
+    if (prevX !== undefined && prevY !== undefined) {
+      // Slide along the edge the chick approached from
+      if (prevX <= PLANTER.xMin) x = PLANTER.xMin;
+      else if (prevX >= PLANTER.xMax) x = PLANTER.xMax;
+      else if (prevY >= PLANTER.yMax) y = PLANTER.yMax;
+      else {
+        // Already inside — push to nearest edge
+        const dL = x - PLANTER.xMin, dR = PLANTER.xMax - x, dB = PLANTER.yMax - y;
+        if (dB <= dL && dB <= dR) y = PLANTER.yMax;
+        else if (dL <= dR) x = PLANTER.xMin;
+        else x = PLANTER.xMax;
+      }
+    } else {
+      const dL = x - PLANTER.xMin, dR = PLANTER.xMax - x, dB = PLANTER.yMax - y;
+      if (dB <= dL && dB <= dR) y = PLANTER.yMax;
+      else if (dL <= dR) x = PLANTER.xMin;
+      else x = PLANTER.xMax;
+    }
   }
   return { x, y };
 }
@@ -409,7 +422,9 @@ function onPointerMove(e) {
   const dxPct = (dx / rect.width) * 100;
   const dyPct = (dy / rect.height) * 100;
 
-  const c = constrainToYard(dragState.chickStartX + dxPct, dragState.chickStartY + dyPct);
+  const prev = positions.get(myToken);
+  const c = constrainToYard(dragState.chickStartX + dxPct, dragState.chickStartY + dyPct,
+                            prev ? prev.x : undefined, prev ? prev.y : undefined);
   dragState.wrapEl.style.left = c.x + '%';
   dragState.wrapEl.style.top = c.y + '%';
   positions.set(myToken, c);
@@ -474,18 +489,18 @@ function doSmash(wrapEl) {
 }
 
 function createDustPuff(wrapEl) {
-  const count = 7;
+  const count = 9;
   for (let i = 0; i < count; i++) {
     const p = document.createElement('div');
     p.className = 'dust-particle';
     const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
-    const dist = 12 + Math.random() * 18;
+    const dist = 20 + Math.random() * 35;
     p.style.setProperty('--dx', (Math.cos(angle) * dist) + 'px');
     p.style.setProperty('--dy', (Math.sin(angle) * dist * 0.4) + 'px');
-    p.style.setProperty('--size', (4 + Math.random() * 4) + 'px');
-    p.style.animationDelay = (Math.random() * 40) + 'ms';
+    p.style.setProperty('--size', (7 + Math.random() * 7) + 'px');
+    p.style.animationDelay = (Math.random() * 50) + 'ms';
     wrapEl.appendChild(p);
-    setTimeout(() => p.remove(), 500);
+    setTimeout(() => p.remove(), 600);
   }
 }
 
