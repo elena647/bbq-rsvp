@@ -243,15 +243,12 @@ const YARD = {
   xMin: SAFE_X_MARGIN,
   xMax: 100 - SAFE_X_MARGIN,
   yMin: 55,
-  yMax: 88,
+  yMax: 82,
 };
-const PLANTER = { xMin: 38, xMax: 62, yMax: 80 };
-function isMobile() { return window.innerWidth < 768; }
 const MIN_DIST = 11;
 
 function isValidSpot(x, y, ignoreToken) {
   if (x < YARD.xMin || x > YARD.xMax || y < YARD.yMin || y > YARD.yMax) return false;
-  if (!isMobile() && x > PLANTER.xMin && x < PLANTER.xMax && y < PLANTER.yMax) return false;
   for (const g of guests) {
     if (g.token === ignoreToken) continue;
     const home = homePosition(g);
@@ -297,7 +294,7 @@ function pickWanderTarget(home) {
   const dist = Math.random() * WANDER_RADIUS;
   const x = home.x + Math.cos(angle) * dist;
   const y = home.y + Math.sin(angle) * dist;
-  return constrainToYard(x, y, home.x, home.y);
+  return constrainToYard(x, y);
 }
 
 function startWandering(token, wrapEl) {
@@ -352,30 +349,11 @@ function getPointerPos(e) {
   return { pageX: t.pageX, pageY: t.pageY };
 }
 
-function constrainToYard(x, y, prevX, prevY) {
-  x = clamp(x, YARD.xMin, YARD.xMax);
-  y = clamp(y, YARD.yMin, YARD.yMax);
-  if (!isMobile() && x > PLANTER.xMin && x < PLANTER.xMax && y < PLANTER.yMax) {
-    if (prevX !== undefined && prevY !== undefined) {
-      // Slide along the edge the chick approached from
-      if (prevX <= PLANTER.xMin) x = PLANTER.xMin;
-      else if (prevX >= PLANTER.xMax) x = PLANTER.xMax;
-      else if (prevY >= PLANTER.yMax) y = PLANTER.yMax;
-      else {
-        // Already inside — push to nearest edge
-        const dL = x - PLANTER.xMin, dR = PLANTER.xMax - x, dB = PLANTER.yMax - y;
-        if (dB <= dL && dB <= dR) y = PLANTER.yMax;
-        else if (dL <= dR) x = PLANTER.xMin;
-        else x = PLANTER.xMax;
-      }
-    } else {
-      const dL = x - PLANTER.xMin, dR = PLANTER.xMax - x, dB = PLANTER.yMax - y;
-      if (dB <= dL && dB <= dR) y = PLANTER.yMax;
-      else if (dL <= dR) x = PLANTER.xMin;
-      else x = PLANTER.xMax;
-    }
-  }
-  return { x, y };
+function constrainToYard(x, y) {
+  return {
+    x: clamp(x, YARD.xMin, YARD.xMax),
+    y: clamp(y, YARD.yMin, YARD.yMax),
+  };
 }
 
 function isUIElement(el) {
@@ -422,9 +400,7 @@ function onPointerMove(e) {
   const dxPct = (dx / rect.width) * 100;
   const dyPct = (dy / rect.height) * 100;
 
-  const prev = positions.get(myToken);
-  const c = constrainToYard(dragState.chickStartX + dxPct, dragState.chickStartY + dyPct,
-                            prev ? prev.x : undefined, prev ? prev.y : undefined);
+  const c = constrainToYard(dragState.chickStartX + dxPct, dragState.chickStartY + dyPct);
   dragState.wrapEl.style.left = c.x + '%';
   dragState.wrapEl.style.top = c.y + '%';
   positions.set(myToken, c);
@@ -522,6 +498,12 @@ async function savePosition(token, x, y) {
 // ============== GUEST RENDERING ==============
 function renderGuests() {
   if (dragState.active) return;
+  if (typeof walkLoopId !== 'undefined' && walkLoopId) {
+    cancelAnimationFrame(walkLoopId);
+    walkLoopId = null;
+    keysHeld.clear();
+    wanderPaused.delete(myToken);
+  }
   const layer = document.getElementById('guest-layer');
   layer.innerHTML = '';
   positions.clear();
@@ -886,6 +868,104 @@ function showError(msg) {
   errorEl.classList.add('visible');
   document.getElementById('loading-overlay').classList.add('hidden');
 }
+
+// ============== KEYBOARD CONTROLS ==============
+const keysHeld = new Set();
+const WALK_SPEED = 0.4;
+let walkLoopId = null;
+let lastSpaceTime = 0;
+
+function isInputFocused() {
+  const tag = document.activeElement?.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+}
+
+function isModalOpen() {
+  return modal.classList.contains('open');
+}
+
+function startWalkLoop() {
+  if (walkLoopId) return;
+  const wrap = document.querySelector('.guest-wrap.my-chick');
+  if (!wrap) return;
+  wanderPaused.add(myToken);
+  wrap.style.transition = 'none';
+
+  function frame() {
+    if (keysHeld.size === 0) {
+      walkLoopId = null;
+      wrap.style.transition = '';
+      wanderPaused.delete(myToken);
+      const pos = positions.get(myToken);
+      if (pos) {
+        const guest = findMyRsvp();
+        if (guest) { guest.pos_x = pos.x; guest.pos_y = pos.y; }
+        savePosition(myToken, pos.x, pos.y);
+      }
+      return;
+    }
+
+    let dx = 0, dy = 0;
+    if (keysHeld.has('ArrowLeft')) dx -= WALK_SPEED;
+    if (keysHeld.has('ArrowRight')) dx += WALK_SPEED;
+    if (keysHeld.has('ArrowUp')) dy -= WALK_SPEED;
+    if (keysHeld.has('ArrowDown')) dy += WALK_SPEED;
+    if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+
+    if (dx !== 0 || dy !== 0) {
+      const prev = positions.get(myToken) || homePosition(findMyRsvp());
+      const c = constrainToYard(prev.x + dx, prev.y + dy);
+      wrap.style.left = c.x + '%';
+      wrap.style.top = c.y + '%';
+      positions.set(myToken, c);
+      updateTooltipAnchor(wrap, c.x);
+
+      const guestEl = wrap.querySelector('.guest');
+      if (guestEl) {
+        if (dx < 0) guestEl.classList.add('facing-left');
+        else if (dx > 0) guestEl.classList.remove('facing-left');
+      }
+    }
+
+    walkLoopId = requestAnimationFrame(frame);
+  }
+  walkLoopId = requestAnimationFrame(frame);
+}
+
+document.addEventListener('keydown', (e) => {
+  if (isInputFocused() || isModalOpen()) return;
+  if (!findMyRsvp()) return;
+
+  if (e.key === ' ') {
+    e.preventDefault();
+    if (e.repeat) return;
+    const wrap = document.querySelector('.guest-wrap.my-chick');
+    if (!wrap) return;
+    const now = Date.now();
+    if (now - lastSpaceTime < 300) {
+      lastSpaceTime = 0;
+      doSmash(wrap);
+    } else {
+      lastSpaceTime = now;
+      doJump(wrap);
+    }
+    return;
+  }
+
+  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+    e.preventDefault();
+    if (!keysHeld.has(e.key)) {
+      keysHeld.add(e.key);
+      startWalkLoop();
+    }
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  keysHeld.delete(e.key);
+});
+
+window.addEventListener('blur', () => keysHeld.clear());
 
 // ============== INIT ==============
 (async function init() {
