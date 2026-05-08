@@ -541,6 +541,59 @@ html, body {
   text-decoration: underline;
 }
 
+/* ===== DRAG & TAP ANIMATIONS ===== */
+.guest-wrap.my-chick {
+  cursor: grab;
+  touch-action: none;
+}
+.guest-wrap.dragging {
+  transition: none !important;
+  cursor: grabbing;
+  z-index: 10;
+  transform: translateX(-50%) translateY(-4px) scale(1.05);
+  filter: drop-shadow(0 4px 3px rgba(0,0,0,0.3));
+}
+.guest-wrap.dragging .guest {
+  animation: none;
+}
+@keyframes chick-jump {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-12px); }
+}
+.guest-wrap.jumping {
+  animation: chick-jump 0.2s ease-out !important;
+  transition: none !important;
+}
+@keyframes chick-smash {
+  0% { transform: translateX(-50%) translateY(0) scale(1); }
+  25% { transform: translateX(-50%) translateY(-35px) scale(1.1); }
+  45% { transform: translateX(-50%) translateY(-35px) scale(1.1); }
+  65% { transform: translateX(-50%) translateY(2px) scaleX(1.15) scaleY(0.85); }
+  80% { transform: translateX(-50%) translateY(-5px) scale(1); }
+  100% { transform: translateX(-50%) translateY(0) scale(1); }
+}
+.guest-wrap.smashing {
+  animation: chick-smash 0.5s ease-in-out !important;
+  transition: none !important;
+}
+.smash-dust {
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 130%;
+  height: 10px;
+  background: radial-gradient(ellipse, rgba(160, 140, 100, 0.5) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: dust-puff 0.35s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes dust-puff {
+  0% { opacity: 0; transform: translateX(-50%) scale(0.3); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) scale(1.8); }
+}
+
 /* ===== MOBILE ===== */
 @media (max-width: 480px) {
   .builder-grid { grid-template-columns: 1fr; }

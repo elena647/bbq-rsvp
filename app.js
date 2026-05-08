@@ -246,14 +246,14 @@ const YARD = {
   yMax: 100 - CHICK_HEIGHT_PCT - SAFE_BOTTOM_MARGIN,
 };
 const PLANTER = { xMin: 38, xMax: 62, yMax: 80 };
-const MIN_DIST = 9;
+const MIN_DIST = 11;
 
 function isValidSpot(x, y, ignoreToken) {
   if (x < YARD.xMin || x > YARD.xMax || y < YARD.yMin || y > YARD.yMax) return false;
   if (x > PLANTER.xMin && x < PLANTER.xMax && y < PLANTER.yMax) return false;
   for (const g of guests) {
     if (g.token === ignoreToken) continue;
-    const home = homeFromSeed(g.seed);
+    const home = homePosition(g);
     const dx = home.x - x, dy = home.y - y;
     if (Math.sqrt(dx * dx + dy * dy) < MIN_DIST) return false;
   }
@@ -266,6 +266,11 @@ function homeFromSeed(seed) {
     x: YARD.xMin + seed * (YARD.xMax - YARD.xMin),
     y: YARD.yMin + s2 * (YARD.yMax - YARD.yMin),
   };
+}
+
+function homePosition(g) {
+  if (g.pos_x != null && g.pos_y != null) return { x: g.pos_x, y: g.pos_y };
+  return homeFromSeed(g.seed);
 }
 
 function generateGoodSeed() {
@@ -300,8 +305,8 @@ function startWandering(token, wrapEl) {
   function step() {
     const guest = guests.find(g => g.token === token);
     if (!guest) return;
-    if (Math.random() > 0.25) {
-      const home = homeFromSeed(guest.seed);
+    if (!wanderPaused.has(token) && Math.random() > 0.25) {
+      const home = homePosition(guest);
       const target = pickWanderTarget(home);
       const prev = positions.get(token) || home;
       positions.set(token, target);
@@ -328,8 +333,152 @@ function updateTooltipAnchor(wrapEl, xPct) {
   else if (xPct > 82) tooltip.classList.add('anchor-right');
 }
 
+// ============== DRAG & TAP ==============
+const wanderPaused = new Set();
+let justDragged = false;
+let lastTapTime = 0;
+
+const dragState = {
+  active: false,
+  token: null,
+  wrapEl: null,
+  startX: 0,
+  startY: 0,
+  moved: false,
+};
+
+function getPointerPos(e) {
+  const t = e.touches ? e.touches[0] : e;
+  return { pageX: t.pageX, pageY: t.pageY };
+}
+
+function pageToPercent(pageX, pageY) {
+  const rect = document.getElementById('bbq-app').getBoundingClientRect();
+  return {
+    x: ((pageX - rect.left) / rect.width) * 100,
+    y: ((pageY - rect.top) / rect.height) * 100,
+  };
+}
+
+function constrainToYard(x, y) {
+  x = clamp(x, YARD.xMin, YARD.xMax);
+  y = clamp(y, YARD.yMin, YARD.yMax);
+  if (x > PLANTER.xMin && x < PLANTER.xMax && y < PLANTER.yMax) {
+    const dL = x - PLANTER.xMin, dR = PLANTER.xMax - x, dB = PLANTER.yMax - y;
+    if (dB <= dL && dB <= dR) y = PLANTER.yMax;
+    else if (dL <= dR) x = PLANTER.xMin;
+    else x = PLANTER.xMax;
+  }
+  return { x, y };
+}
+
+function startDrag(e, token, wrapEl) {
+  if (dragState.active) return;
+  const pos = getPointerPos(e);
+  dragState.active = true;
+  dragState.token = token;
+  dragState.wrapEl = wrapEl;
+  dragState.startX = pos.pageX;
+  dragState.startY = pos.pageY;
+  dragState.moved = false;
+  wanderPaused.add(token);
+  wrapEl.classList.add('dragging');
+  wrapEl.style.transition = 'none';
+  document.body.style.cursor = 'grabbing';
+}
+
+function onPointerMove(e) {
+  if (!dragState.active) return;
+  e.preventDefault();
+  const pos = getPointerPos(e);
+  const dx = pos.pageX - dragState.startX;
+  const dy = pos.pageY - dragState.startY;
+  if (Math.abs(dx) > 5 || Math.abs(dy) > 5) dragState.moved = true;
+  const pct = pageToPercent(pos.pageX, pos.pageY);
+  const c = constrainToYard(pct.x, pct.y);
+  dragState.wrapEl.style.left = c.x + '%';
+  dragState.wrapEl.style.top = c.y + '%';
+  positions.set(dragState.token, c);
+  updateTooltipAnchor(dragState.wrapEl, c.x);
+}
+
+function onPointerUp() {
+  if (!dragState.active) return;
+  const wrap = dragState.wrapEl;
+  const token = dragState.token;
+  const moved = dragState.moved;
+  wrap.classList.remove('dragging');
+  wrap.style.transition = '';
+  document.body.style.cursor = '';
+  dragState.active = false;
+  wanderPaused.delete(token);
+
+  if (moved) {
+    justDragged = true;
+    const pos = positions.get(token);
+    if (pos) {
+      const guest = guests.find(g => g.token === token);
+      if (guest) { guest.pos_x = pos.x; guest.pos_y = pos.y; }
+      savePosition(token, pos.x, pos.y);
+    }
+  } else {
+    handleChickTap(wrap);
+  }
+}
+
+function handleChickTap(wrapEl) {
+  const now = Date.now();
+  if (now - lastTapTime < 300) {
+    lastTapTime = 0;
+    doSmash(wrapEl);
+  } else {
+    lastTapTime = now;
+    doJump(wrapEl);
+  }
+}
+
+function doJump(wrapEl) {
+  wrapEl.classList.remove('jumping', 'smashing');
+  void wrapEl.offsetWidth;
+  wrapEl.classList.add('jumping');
+  wrapEl.addEventListener('animationend', function h() {
+    wrapEl.classList.remove('jumping');
+    wrapEl.removeEventListener('animationend', h);
+  });
+}
+
+function doSmash(wrapEl) {
+  wrapEl.classList.remove('jumping', 'smashing');
+  void wrapEl.offsetWidth;
+  wrapEl.classList.add('smashing');
+  setTimeout(() => {
+    const dust = document.createElement('div');
+    dust.className = 'smash-dust';
+    wrapEl.appendChild(dust);
+    setTimeout(() => dust.remove(), 400);
+  }, 225);
+  wrapEl.addEventListener('animationend', function h() {
+    wrapEl.classList.remove('smashing');
+    wrapEl.removeEventListener('animationend', h);
+  });
+}
+
+document.addEventListener('mousemove', onPointerMove);
+document.addEventListener('mouseup', onPointerUp);
+document.addEventListener('touchmove', onPointerMove, { passive: false });
+document.addEventListener('touchend', onPointerUp);
+
+async function savePosition(token, x, y) {
+  const { error } = await db
+    .from('rsvps')
+    .update({ pos_x: x, pos_y: y })
+    .eq('token', token);
+  if (error) console.error('Failed to save position:', error);
+}
+
 // ============== GUEST RENDERING ==============
 function renderGuests() {
+  if (dragState.active) return;
   const layer = document.getElementById('guest-layer');
   layer.innerHTML = '';
   positions.clear();
@@ -337,7 +486,7 @@ function renderGuests() {
   for (const g of guests) {
     const wrap = document.createElement('div');
     wrap.className = 'guest-wrap';
-    const home = homeFromSeed(g.seed);
+    const home = homePosition(g);
     positions.set(g.token, home);
     wrap.style.left = home.x + '%';
     wrap.style.top = home.y + '%';
@@ -369,12 +518,19 @@ function renderGuests() {
     wrap.addEventListener('mouseenter', () => wrap.classList.add('show-tooltip'));
     wrap.addEventListener('mouseleave', () => wrap.classList.remove('show-tooltip'));
     wrap.addEventListener('click', (e) => {
+      if (justDragged) { justDragged = false; return; }
       e.stopPropagation();
       document.querySelectorAll('.guest-wrap.show-tooltip').forEach(el => {
         if (el !== wrap) el.classList.remove('show-tooltip');
       });
       wrap.classList.toggle('show-tooltip');
     });
+
+    if (g.token === myToken) {
+      wrap.classList.add('my-chick');
+      wrap.addEventListener('mousedown', (e) => { if (e.button === 0) startDrag(e, g.token, wrap); });
+      wrap.addEventListener('touchstart', (e) => startDrag(e, g.token, wrap), { passive: false });
+    }
 
     layer.appendChild(wrap);
     startWandering(g.token, wrap);
