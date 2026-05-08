@@ -242,8 +242,8 @@ const SAFE_BOTTOM_MARGIN = 4;
 const YARD = {
   xMin: SAFE_X_MARGIN,
   xMax: 100 - SAFE_X_MARGIN,
-  yMin: 70,
-  yMax: 100 - CHICK_HEIGHT_PCT - SAFE_BOTTOM_MARGIN,
+  yMin: 66,
+  yMax: 88,
 };
 const PLANTER = { xMin: 38, xMax: 62, yMax: 80 };
 const MIN_DIST = 11;
@@ -340,24 +340,17 @@ let lastTapTime = 0;
 
 const dragState = {
   active: false,
-  token: null,
   wrapEl: null,
-  startX: 0,
-  startY: 0,
+  pointerStartX: 0,
+  pointerStartY: 0,
+  chickStartX: 0,
+  chickStartY: 0,
   moved: false,
 };
 
 function getPointerPos(e) {
   const t = e.touches ? e.touches[0] : e;
   return { pageX: t.pageX, pageY: t.pageY };
-}
-
-function pageToPercent(pageX, pageY) {
-  const rect = document.getElementById('bbq-app').getBoundingClientRect();
-  return {
-    x: ((pageX - rect.left) / rect.width) * 100,
-    y: ((pageY - rect.top) / rect.height) * 100,
-  };
 }
 
 function constrainToYard(x, y) {
@@ -372,54 +365,73 @@ function constrainToYard(x, y) {
   return { x, y };
 }
 
-function startDrag(e, token, wrapEl) {
+function isUIElement(el) {
+  return el.closest('.invite-card') || el.closest('.modal-backdrop') ||
+         el.closest('.test-panel') || el.closest('.loading-overlay') ||
+         el.closest('.error-overlay');
+}
+
+function onYardPointerDown(e) {
+  if (isUIElement(e.target)) return;
+  const chickWrap = e.target.closest('.guest-wrap');
+  if (chickWrap && !chickWrap.classList.contains('my-chick')) return;
+  if (!findMyRsvp()) return;
+  const wrap = document.querySelector('.guest-wrap.my-chick');
+  if (!wrap) return;
   if (dragState.active) return;
+
+  e.preventDefault();
   const pos = getPointerPos(e);
+  const chickPos = positions.get(myToken) || homePosition(findMyRsvp());
+
   dragState.active = true;
-  dragState.token = token;
-  dragState.wrapEl = wrapEl;
-  dragState.startX = pos.pageX;
-  dragState.startY = pos.pageY;
+  dragState.wrapEl = wrap;
+  dragState.pointerStartX = pos.pageX;
+  dragState.pointerStartY = pos.pageY;
+  dragState.chickStartX = chickPos.x;
+  dragState.chickStartY = chickPos.y;
   dragState.moved = false;
-  wanderPaused.add(token);
-  wrapEl.classList.add('dragging');
-  wrapEl.style.transition = 'none';
-  document.body.style.cursor = 'grabbing';
+
+  wanderPaused.add(myToken);
+  wrap.classList.add('dragging');
+  wrap.style.transition = 'none';
 }
 
 function onPointerMove(e) {
   if (!dragState.active) return;
   e.preventDefault();
   const pos = getPointerPos(e);
-  const dx = pos.pageX - dragState.startX;
-  const dy = pos.pageY - dragState.startY;
+  const dx = pos.pageX - dragState.pointerStartX;
+  const dy = pos.pageY - dragState.pointerStartY;
   if (Math.abs(dx) > 5 || Math.abs(dy) > 5) dragState.moved = true;
-  const pct = pageToPercent(pos.pageX, pos.pageY);
-  const c = constrainToYard(pct.x, pct.y);
+
+  const rect = document.getElementById('bbq-app').getBoundingClientRect();
+  const dxPct = (dx / rect.width) * 100;
+  const dyPct = (dy / rect.height) * 100;
+
+  const c = constrainToYard(dragState.chickStartX + dxPct, dragState.chickStartY + dyPct);
   dragState.wrapEl.style.left = c.x + '%';
   dragState.wrapEl.style.top = c.y + '%';
-  positions.set(dragState.token, c);
+  positions.set(myToken, c);
   updateTooltipAnchor(dragState.wrapEl, c.x);
 }
 
 function onPointerUp() {
   if (!dragState.active) return;
   const wrap = dragState.wrapEl;
-  const token = dragState.token;
   const moved = dragState.moved;
   wrap.classList.remove('dragging');
   wrap.style.transition = '';
-  document.body.style.cursor = '';
   dragState.active = false;
-  wanderPaused.delete(token);
+  wanderPaused.delete(myToken);
 
   if (moved) {
     justDragged = true;
-    const pos = positions.get(token);
+    const pos = positions.get(myToken);
     if (pos) {
-      const guest = guests.find(g => g.token === token);
+      const guest = findMyRsvp();
       if (guest) { guest.pos_x = pos.x; guest.pos_y = pos.y; }
-      savePosition(token, pos.x, pos.y);
+      savePosition(myToken, pos.x, pos.y);
     }
   } else {
     handleChickTap(wrap);
@@ -427,6 +439,9 @@ function onPointerUp() {
 }
 
 function handleChickTap(wrapEl) {
+  document.querySelectorAll('.guest-wrap.show-tooltip').forEach(el => {
+    el.classList.remove('show-tooltip');
+  });
   const now = Date.now();
   if (now - lastTapTime < 300) {
     lastTapTime = 0;
@@ -451,18 +466,31 @@ function doSmash(wrapEl) {
   wrapEl.classList.remove('jumping', 'smashing');
   void wrapEl.offsetWidth;
   wrapEl.classList.add('smashing');
-  setTimeout(() => {
-    const dust = document.createElement('div');
-    dust.className = 'smash-dust';
-    wrapEl.appendChild(dust);
-    setTimeout(() => dust.remove(), 400);
-  }, 225);
+  setTimeout(() => createDustPuff(wrapEl), 250);
   wrapEl.addEventListener('animationend', function h() {
     wrapEl.classList.remove('smashing');
     wrapEl.removeEventListener('animationend', h);
   });
 }
 
+function createDustPuff(wrapEl) {
+  const count = 7;
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'dust-particle';
+    const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
+    const dist = 12 + Math.random() * 18;
+    p.style.setProperty('--dx', (Math.cos(angle) * dist) + 'px');
+    p.style.setProperty('--dy', (Math.sin(angle) * dist * 0.4) + 'px');
+    p.style.setProperty('--size', (4 + Math.random() * 4) + 'px');
+    p.style.animationDelay = (Math.random() * 40) + 'ms';
+    wrapEl.appendChild(p);
+    setTimeout(() => p.remove(), 500);
+  }
+}
+
+document.getElementById('bbq-app').addEventListener('mousedown', onYardPointerDown);
+document.getElementById('bbq-app').addEventListener('touchstart', onYardPointerDown, { passive: false });
 document.addEventListener('mousemove', onPointerMove);
 document.addEventListener('mouseup', onPointerUp);
 document.addEventListener('touchmove', onPointerMove, { passive: false });
@@ -519,6 +547,7 @@ function renderGuests() {
     wrap.addEventListener('mouseleave', () => wrap.classList.remove('show-tooltip'));
     wrap.addEventListener('click', (e) => {
       if (justDragged) { justDragged = false; return; }
+      if (g.token === myToken) return;
       e.stopPropagation();
       document.querySelectorAll('.guest-wrap.show-tooltip').forEach(el => {
         if (el !== wrap) el.classList.remove('show-tooltip');
@@ -528,8 +557,6 @@ function renderGuests() {
 
     if (g.token === myToken) {
       wrap.classList.add('my-chick');
-      wrap.addEventListener('mousedown', (e) => { if (e.button === 0) startDrag(e, g.token, wrap); });
-      wrap.addEventListener('touchstart', (e) => startDrag(e, g.token, wrap), { passive: false });
     }
 
     layer.appendChild(wrap);
