@@ -562,7 +562,7 @@ html, body {
 }
 .mascot-bubble {
   position: absolute;
-  bottom: calc(100% + 8px);
+  bottom: calc(100% + 2px);
   left: 50%;
   transform: translateX(-50%);
   background: #FBF6E9;
