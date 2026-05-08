@@ -565,18 +565,6 @@ function renderGuests() {
       wrap.classList.add('my-chick');
     }
 
-    wrap.addEventListener('transitionstart', () => {
-      if (!wrap.classList.contains('dragging')) {
-        wrap.querySelector('.guest')?.classList.add('walking');
-      }
-    });
-    wrap.addEventListener('transitionend', () => {
-      wrap.querySelector('.guest')?.classList.remove('walking');
-    });
-    wrap.addEventListener('transitioncancel', () => {
-      wrap.querySelector('.guest')?.classList.remove('walking');
-    });
-
     layer.appendChild(wrap);
     startWandering(g.token, wrap);
   }
@@ -994,7 +982,7 @@ function showMascot() {
   const wrap = document.createElement('div');
   wrap.className = 'mascot-wrap';
   wrap.style.left = '50%';
-  wrap.style.top = '45%';
+  wrap.style.top = '70%';
 
   const chickEl = document.createElement('div');
   chickEl.className = 'guest';

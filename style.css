@@ -39,7 +39,7 @@ html, body {
 .guest-wrap {
   position: absolute;
   transform: translateX(-50%);
-  transition: left 5s ease-in-out, top 5s ease-in-out;
+  transition: left 3s ease-in-out, top 3s ease-in-out;
 }
 .guest {
   image-rendering: pixelated;
@@ -55,11 +55,11 @@ html, body {
   50% { transform: translateY(-2px); }
 }
 @keyframes walk-rock {
-  0%, 100% { transform: translateY(0) rotate(-4deg); }
-  50% { transform: translateY(-3px) rotate(4deg); }
+  0%, 100% { transform: translateY(0) rotate(-7deg); }
+  50% { transform: translateY(-3px) rotate(7deg); }
 }
 .guest.walking {
-  animation: walk-rock 0.3s ease-in-out infinite !important;
+  animation: walk-rock 0.25s ease-in-out infinite !important;
   animation-delay: 0s !important;
 }
 
@@ -553,7 +553,7 @@ html, body {
 .mascot-wrap {
   position: absolute;
   transform: translateX(-50%);
-  transition: left 5s ease-in-out;
+  transition: left 3s ease-in-out;
   width: 11%;
   min-width: 60px;
   max-width: 120px;
@@ -600,7 +600,8 @@ html, body {
   filter: drop-shadow(0 4px 3px rgba(0,0,0,0.3));
 }
 .guest-wrap.dragging .guest {
-  animation: none;
+  animation: walk-rock 0.25s ease-in-out infinite !important;
+  animation-delay: 0s !important;
 }
 @keyframes chick-jump {
   0%, 100% { transform: translateX(-50%) translateY(0); }
