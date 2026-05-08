@@ -982,7 +982,7 @@ function showMascot() {
   const wrap = document.createElement('div');
   wrap.className = 'mascot-wrap';
   wrap.style.left = '50%';
-  wrap.style.top = '70%';
+  wrap.style.top = '60%';
 
   const chickEl = document.createElement('div');
   chickEl.className = 'guest';

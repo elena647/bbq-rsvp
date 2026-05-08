@@ -554,15 +554,15 @@ html, body {
   position: absolute;
   transform: translateX(-50%);
   transition: left 3s ease-in-out;
-  width: 18%;
-  min-width: 120px;
-  max-width: 240px;
+  width: 15%;
+  min-width: 100px;
+  max-width: 200px;
   z-index: 5;
   pointer-events: none;
 }
 .mascot-bubble {
   position: absolute;
-  bottom: calc(100% + 2px);
+  bottom: calc(100% + 22px);
   left: 50%;
   transform: translateX(-50%);
   background: #FBF6E9;
