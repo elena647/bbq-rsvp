@@ -880,7 +880,7 @@ function showError(msg) {
 
 // ============== KEYBOARD CONTROLS ==============
 const keysHeld = new Set();
-const WALK_SPEED = 0.4;
+const WALK_SPEED = 0.2;
 let walkLoopId = null;
 let lastSpaceTime = 0;
 
