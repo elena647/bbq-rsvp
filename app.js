@@ -1082,7 +1082,7 @@ function showMascot() {
 
   const bubble = document.createElement('div');
   bubble.className = 'mascot-bubble';
-  bubble.textContent = 'Pssst. Turn your phone to landscape or try on desktop for the best experience.';
+  bubble.textContent = 'Pssst. Try on desktop for the best experience.';
 
   wrap.appendChild(bubble);
   wrap.appendChild(chickEl);
