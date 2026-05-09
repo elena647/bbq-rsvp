@@ -395,6 +395,7 @@ function onYardPointerDown(e) {
   wanderPaused.add(myToken);
   wrap.classList.add('dragging');
   wrap.style.transition = 'none';
+  displacedTokens.clear();
 }
 
 function onPointerMove(e) {
@@ -414,6 +415,7 @@ function onPointerMove(e) {
   dragState.wrapEl.style.top = c.y + '%';
   positions.set(myToken, c);
   updateTooltipAnchor(dragState.wrapEl, c.x);
+  displaceNearbyChicks(c.x, c.y);
 }
 
 function onPointerUp() {
@@ -433,6 +435,7 @@ function onPointerUp() {
       if (guest) { guest.pos_x = pos.x; guest.pos_y = pos.y; }
       savePosition(myToken, pos.x, pos.y);
     }
+    saveDisplacedChicks();
   } else {
     handleChickTap(wrap);
   }
@@ -504,6 +507,90 @@ async function savePosition(token, x, y) {
   if (error) console.error('Failed to save position:', error);
 }
 
+// ============== CHICK DISPLACEMENT ==============
+const PERSONAL_SPACE = 8;
+const NUDGE_AMOUNT = 1.5;
+const displacedTokens = new Set();
+const pushTimeouts = new Map();
+
+function displaceNearbyChicks(myX, myY) {
+  for (const g of guests) {
+    if (g.token === myToken) continue;
+
+    const pos = positions.get(g.token);
+    if (!pos) continue;
+
+    const dx = pos.x - myX;
+    const dy = pos.y - myY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist >= PERSONAL_SPACE) continue;
+
+    let pushX, pushY;
+    if (dist < 0.1) {
+      const angle = Math.random() * Math.PI * 2;
+      pushX = Math.cos(angle) * NUDGE_AMOUNT;
+      pushY = Math.sin(angle) * NUDGE_AMOUNT;
+    } else {
+      pushX = (dx / dist) * NUDGE_AMOUNT;
+      pushY = (dy / dist) * NUDGE_AMOUNT;
+    }
+
+    const newPos = constrainToYard(pos.x + pushX, pos.y + pushY);
+
+    // Loose chain-reaction check — only block if very close to another chick
+    let blocked = false;
+    for (const other of guests) {
+      if (other.token === myToken || other.token === g.token) continue;
+      const op = positions.get(other.token);
+      if (!op) continue;
+      const odx = newPos.x - op.x, ody = newPos.y - op.y;
+      if (Math.sqrt(odx * odx + ody * ody) < PERSONAL_SPACE / 2) { blocked = true; break; }
+    }
+    if (blocked) continue;
+
+    const wrap = document.querySelector(`.guest-wrap[data-token="${g.token}"]`);
+    if (!wrap) continue;
+
+    wrap.classList.add('being-pushed');
+    wrap.style.left = newPos.x + '%';
+    wrap.style.top = newPos.y + '%';
+
+    // Remove fast-transition class after 1s of no further nudges
+    if (pushTimeouts.has(g.token)) clearTimeout(pushTimeouts.get(g.token));
+    pushTimeouts.set(g.token, setTimeout(() => {
+      const w = document.querySelector(`.guest-wrap[data-token="${g.token}"]`);
+      if (w) w.classList.remove('being-pushed');
+      pushTimeouts.delete(g.token);
+    }, 1000));
+
+    positions.set(g.token, newPos);
+    updateTooltipAnchor(wrap, newPos.x);
+    g.pos_x = newPos.x;
+    g.pos_y = newPos.y;
+
+    const guestEl = wrap.querySelector('.guest');
+    if (guestEl) {
+      if (pushX < -0.2) guestEl.classList.add('facing-left');
+      else if (pushX > 0.2) guestEl.classList.remove('facing-left');
+    }
+
+    displacedTokens.add(g.token);
+  }
+}
+
+async function saveDisplacedChicks() {
+  const tokens = [...displacedTokens];
+  displacedTokens.clear();
+  for (const token of tokens) {
+    const pos = positions.get(token);
+    if (pos) {
+      savePosition(token, pos.x, pos.y).catch(err =>
+        console.error('Failed to save displaced chick:', err)
+      );
+    }
+  }
+}
+
 // ============== GUEST RENDERING ==============
 function renderGuests() {
   if (dragState.active) return;
@@ -520,6 +607,7 @@ function renderGuests() {
   for (const g of guests) {
     const wrap = document.createElement('div');
     wrap.className = 'guest-wrap';
+    wrap.dataset.token = g.token;
     const home = homePosition(g);
     positions.set(g.token, home);
     wrap.style.left = home.x + '%';
@@ -899,6 +987,7 @@ function startWalkLoop() {
   if (!wrap) return;
   wanderPaused.add(myToken);
   wrap.style.transition = 'none';
+  displacedTokens.clear();
 
   function frame() {
     if (keysHeld.size === 0) {
@@ -911,6 +1000,7 @@ function startWalkLoop() {
         if (guest) { guest.pos_x = pos.x; guest.pos_y = pos.y; }
         savePosition(myToken, pos.x, pos.y);
       }
+      saveDisplacedChicks();
       return;
     }
 
@@ -928,6 +1018,7 @@ function startWalkLoop() {
       wrap.style.top = c.y + '%';
       positions.set(myToken, c);
       updateTooltipAnchor(wrap, c.x);
+      displaceNearbyChicks(c.x, c.y);
 
       const guestEl = wrap.querySelector('.guest');
       if (guestEl) {

@@ -592,6 +592,11 @@ html, body {
   opacity: 0;
 }
 
+/* ===== DISPLACEMENT ===== */
+.guest-wrap.being-pushed {
+  transition: left 0.25s linear, top 0.25s linear !important;
+}
+
 /* ===== DRAG & TAP ANIMATIONS ===== */
 .guest-wrap.dragging {
   transition: none !important;
