@@ -664,16 +664,16 @@ html, body {
 
 /* ===== SOUND TOGGLE ===== */
 .sound-toggle {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
+  position: fixed;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  right: max(16px, env(safe-area-inset-right));
   width: 40px;
   height: 40px;
   background: #FBF6E9;
   border: 2px solid #7A4018;
   border-radius: 8px;
   cursor: pointer;
-  z-index: 50;
+  z-index: 60;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -689,7 +689,7 @@ html, body {
   height: 20px;
 }
 body.test-mode .sound-toggle {
-  bottom: 200px;
+  bottom: max(200px, calc(200px + env(safe-area-inset-bottom)));
 }
 
 /* ===== MOBILE ===== */
@@ -699,8 +699,8 @@ body.test-mode .sound-toggle {
   .invite-title { font-size: 18px; }
   .invite-meta { font-size: 12px; }
   .test-panel { bottom: 8px; right: 8px; padding: 8px; }
-  .sound-toggle { bottom: 8px; right: 8px; width: 36px; height: 36px; }
-  body.test-mode .sound-toggle { bottom: 180px; }
+  .sound-toggle { bottom: max(8px, env(safe-area-inset-bottom)); right: max(8px, env(safe-area-inset-right)); width: 36px; height: 36px; }
+  body.test-mode .sound-toggle { bottom: max(180px, calc(180px + env(safe-area-inset-bottom))); }
   .modal-card { padding: 18px; }
   .modal-title { font-size: 18px; }
 }
