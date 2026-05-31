@@ -597,6 +597,14 @@ html, body {
   transition: left 0.25s linear, top 0.25s linear !important;
 }
 
+.guest-wrap.being-smashed {
+  transition: left 0.1s linear, top 0.1s linear !important;
+}
+
+.dust-particle.smash-dust {
+  animation-duration: 0.6s;
+}
+
 /* ===== DRAG & TAP ANIMATIONS ===== */
 .guest-wrap.dragging {
   transition: none !important;
@@ -616,16 +624,26 @@ html, body {
   animation: chick-jump 0.4s ease-out !important;
   transition: none !important;
 }
-@keyframes chick-smash {
+@keyframes chick-smash-rise {
   0% { transform: translateX(-50%) translateY(0) scale(1); }
-  25% { transform: translateX(-50%) translateY(-210px) scale(1.15); }
-  45% { transform: translateX(-50%) translateY(-210px) scale(1.15); }
-  65% { transform: translateX(-50%) translateY(3px) scaleX(1.2) scaleY(0.8); }
-  80% { transform: translateX(-50%) translateY(-6px) scale(1); }
+  100% { transform: translateX(-50%) translateY(-210px) scale(1.15); }
+}
+@keyframes chick-smash-slam {
+  0% { transform: translateX(-50%) translateY(-210px) scale(1.15); }
+  45% { transform: translateX(-50%) translateY(3px) scaleX(1.2) scaleY(0.8); }
+  70% { transform: translateX(-50%) translateY(-6px) scale(1); }
   100% { transform: translateX(-50%) translateY(0) scale(1); }
 }
+.guest-wrap.smash-rising {
+  animation: chick-smash-rise 0.2s ease-out forwards !important;
+  transition: none !important;
+}
+.guest-wrap.smash-hovering {
+  transform: translateX(-50%) translateY(-210px) scale(1.15);
+  transition: none !important;
+}
 .guest-wrap.smashing {
-  animation: chick-smash 0.5s ease-in-out !important;
+  animation: chick-smash-slam 0.26s ease-in forwards !important;
   transition: none !important;
 }
 .dust-particle {
@@ -644,6 +662,36 @@ html, body {
   100% { opacity: 0; transform: translate(calc(-50% + var(--dx, 0px)), var(--dy, 0px)) scale(1.8); }
 }
 
+/* ===== SOUND TOGGLE ===== */
+.sound-toggle {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  background: #FBF6E9;
+  border: 2px solid #7A4018;
+  border-radius: 8px;
+  cursor: pointer;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  box-shadow: 0 2px 0 rgba(74, 36, 16, 0.3);
+  transition: background 0.15s;
+}
+.sound-toggle:hover {
+  background: #F0E5C8;
+}
+.sound-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+body.test-mode .sound-toggle {
+  bottom: 200px;
+}
+
 /* ===== MOBILE ===== */
 @media (max-width: 480px) {
   .builder-grid { grid-template-columns: 1fr; }
@@ -651,6 +699,8 @@ html, body {
   .invite-title { font-size: 18px; }
   .invite-meta { font-size: 12px; }
   .test-panel { bottom: 8px; right: 8px; padding: 8px; }
+  .sound-toggle { bottom: 8px; right: 8px; width: 36px; height: 36px; }
+  body.test-mode .sound-toggle { bottom: 180px; }
   .modal-card { padding: 18px; }
   .modal-title { font-size: 18px; }
 }

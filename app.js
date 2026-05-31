@@ -13,8 +13,15 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // Enable by adding ?test=1 to the URL.
 const TEST_MODE = new URLSearchParams(location.search).get('test') === '1';
 if (TEST_MODE) document.getElementById('test-panel').classList.add('visible');
+if (TEST_MODE) document.body.classList.add('test-mode');
 
 // ============== APP CONSTANTS ==============
+const BACKGROUNDS = {
+  earlyMorning: 'bbq_background_early_morning.jpg',
+  day:          'bbq_background.jpg',
+  sunset:       'bbq_background_sunset.jpg',
+  night:        'bbq_background_night.jpg',
+};
 const WELCOME_MESSAGE = "We're firing up the grill for Elena's birthday and have plenty to go around. No need to bring any gifts, your company is all we need! If you'd like to bring a dish or snack, anything shareable would be a hit :)";
 
 const MAX_GUESTS = 50;
@@ -226,6 +233,7 @@ let currentChoice = { clothes: 'none', hat: 'none' };
 let guests = [];
 const positions = new Map();
 let myToken = null;
+let soundEnabled = localStorage.getItem('bbq:sound-enabled') !== 'false';
 
 // ============== TOKEN (browser-stored, used to identify the current user) ==============
 function getOrCreateToken() {
@@ -255,6 +263,7 @@ const YARD = {
   yMax: 82,
 };
 const MIN_DIST = 11;
+
 
 function isValidSpot(x, y, ignoreToken) {
   if (x < YARD.xMin || x > YARD.xMax || y < YARD.yMin || y > YARD.yMax) return false;
@@ -393,6 +402,7 @@ function onYardPointerDown(e) {
   dragState.moved = false;
 
   wanderPaused.add(myToken);
+  chirpedThisSession = false;
   wrap.classList.add('dragging');
   wrap.style.transition = 'none';
   displacedTokens.clear();
@@ -456,7 +466,7 @@ function handleChickTap(wrapEl) {
 }
 
 function doJump(wrapEl) {
-  wrapEl.classList.remove('jumping', 'smashing');
+  wrapEl.classList.remove('jumping', 'smash-rising', 'smash-hovering', 'smashing');
   void wrapEl.offsetWidth;
   wrapEl.classList.add('jumping');
   wrapEl.addEventListener('animationend', function h() {
@@ -466,14 +476,90 @@ function doJump(wrapEl) {
 }
 
 function doSmash(wrapEl) {
-  wrapEl.classList.remove('jumping', 'smashing');
+  chirpedThisSession = false;
+  wrapEl.classList.remove('jumping', 'smash-rising', 'smash-hovering', 'smashing');
   void wrapEl.offsetWidth;
-  wrapEl.classList.add('smashing');
-  setTimeout(() => createDustPuff(wrapEl), 250);
-  wrapEl.addEventListener('animationend', function h() {
-    wrapEl.classList.remove('smashing');
-    wrapEl.removeEventListener('animationend', h);
+
+  // Phase 1: rise to apex
+  wrapEl.classList.add('smash-rising');
+  wrapEl.addEventListener('animationend', function rise() {
+    wrapEl.removeEventListener('animationend', rise);
+    wrapEl.classList.remove('smash-rising');
+
+    // Phase 2: hover at apex
+    wrapEl.classList.add('smash-hovering');
+    setTimeout(() => {
+      wrapEl.classList.remove('smash-hovering');
+
+      // Phase 3: slam down
+      wrapEl.classList.add('smashing');
+      setTimeout(() => {
+        createSmashPuff(wrapEl);
+        smashLand(wrapEl);
+      }, 90);
+      wrapEl.addEventListener('animationend', function slam() {
+        wrapEl.classList.remove('smashing');
+        wrapEl.removeEventListener('animationend', slam);
+      });
+    }, 100);
   });
+}
+
+function smashLand(wrapEl) {
+  const pos = positions.get(myToken);
+  if (!pos) return;
+
+  const newY = Math.min(pos.y + SMASH_DROP, YARD.yMax);
+  pos.y = newY;
+  wrapEl.style.top = newY + '%';
+  positions.set(myToken, pos);
+  const guest = findMyRsvp();
+  if (guest) { guest.pos_y = newY; }
+  savePosition(myToken, pos.x, newY);
+
+  for (const g of guests) {
+    if (g.token === myToken) continue;
+    const gPos = positions.get(g.token);
+    if (!gPos) continue;
+    const dx = gPos.x - pos.x;
+    const dy = gPos.y - pos.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist >= SMASH_RADIUS) continue;
+
+    let pushX, pushY;
+    if (dist < 0.1) {
+      const angle = Math.random() * Math.PI * 2;
+      pushX = Math.cos(angle) * SMASH_NUDGE;
+      pushY = Math.sin(angle) * SMASH_NUDGE;
+    } else {
+      pushX = (dx / dist) * SMASH_NUDGE;
+      pushY = (dy / dist) * SMASH_NUDGE;
+    }
+
+    const newPos = constrainToYard(gPos.x + pushX, gPos.y + pushY);
+    const wrap = document.querySelector(`.guest-wrap[data-token="${g.token}"]`);
+    if (!wrap) continue;
+
+    playChirp();
+    createDustPuff(wrap);
+
+    wrap.classList.add('being-smashed');
+    wrap.style.left = newPos.x + '%';
+    wrap.style.top = newPos.y + '%';
+    positions.set(g.token, newPos);
+    updateTooltipAnchor(wrap, newPos.x);
+    g.pos_x = newPos.x;
+    g.pos_y = newPos.y;
+    savePosition(g.token, newPos.x, newPos.y);
+
+    const timeoutKey = 'smash_' + g.token;
+    if (pushTimeouts.has(timeoutKey)) clearTimeout(pushTimeouts.get(timeoutKey));
+    pushTimeouts.set(timeoutKey, setTimeout(() => {
+      const w = document.querySelector(`.guest-wrap[data-token="${g.token}"]`);
+      if (w) w.classList.remove('being-smashed');
+      pushTimeouts.delete(timeoutKey);
+    }, 300));
+  }
 }
 
 function createDustPuff(wrapEl) {
@@ -489,6 +575,22 @@ function createDustPuff(wrapEl) {
     p.style.animationDelay = (Math.random() * 50) + 'ms';
     wrapEl.appendChild(p);
     setTimeout(() => p.remove(), 600);
+  }
+}
+
+function createSmashPuff(wrapEl) {
+  const count = 18;
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'dust-particle smash-dust';
+    const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
+    const dist = 35 + Math.random() * 50;
+    p.style.setProperty('--dx', (Math.cos(angle) * dist) + 'px');
+    p.style.setProperty('--dy', (Math.sin(angle) * dist * 0.4) + 'px');
+    p.style.setProperty('--size', (10 + Math.random() * 10) + 'px');
+    p.style.animationDelay = (Math.random() * 60) + 'ms';
+    wrapEl.appendChild(p);
+    setTimeout(() => p.remove(), 700);
   }
 }
 
@@ -510,8 +612,48 @@ async function savePosition(token, x, y) {
 // ============== CHICK DISPLACEMENT ==============
 const PERSONAL_SPACE = 8;
 const NUDGE_AMOUNT = 1.5;
+const SMASH_NUDGE = NUDGE_AMOUNT * 6;
+const SMASH_DROP = 3;
+const SMASH_RADIUS = PERSONAL_SPACE * 1.5;
 const displacedTokens = new Set();
 const pushTimeouts = new Map();
+
+// ============== CHIRP SOUND ==============
+let audioCtx = null;
+let chirpedThisSession = false;
+
+function playChirp() {
+  if (!soundEnabled) return;
+  if (chirpedThisSession) return;
+  chirpedThisSession = true;
+
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const ctx = audioCtx;
+  const t = ctx.currentTime;
+
+  function chirp(start) {
+    const osc = ctx.createOscillator();
+    const filter = ctx.createBiquadFilter();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(2000, start);
+    osc.frequency.exponentialRampToValueAtTime(3500, start + 0.06);
+    filter.type = 'bandpass';
+    filter.frequency.value = 2500;
+    filter.Q.value = 5;
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(0.15, start + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.06);
+    osc.connect(filter).connect(gain).connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + 0.06);
+  }
+
+  chirp(t);
+  chirp(t + 0.14);
+}
+
 
 function displaceNearbyChicks(myX, myY) {
   for (const g of guests) {
@@ -547,6 +689,7 @@ function displaceNearbyChicks(myX, myY) {
       if (Math.sqrt(odx * odx + ody * ody) < PERSONAL_SPACE / 2) { blocked = true; break; }
     }
     if (blocked) continue;
+    playChirp();
 
     const wrap = document.querySelector(`.guest-wrap[data-token="${g.token}"]`);
     if (!wrap) continue;
@@ -986,6 +1129,7 @@ function startWalkLoop() {
   const wrap = document.querySelector('.guest-wrap.my-chick');
   if (!wrap) return;
   wanderPaused.add(myToken);
+  chirpedThisSession = false;
   wrap.style.transition = 'none';
   displacedTokens.clear();
 
@@ -1017,7 +1161,7 @@ function startWalkLoop() {
       wrap.style.left = c.x + '%';
       wrap.style.top = c.y + '%';
       positions.set(myToken, c);
-      updateTooltipAnchor(wrap, c.x);
+          updateTooltipAnchor(wrap, c.x);
       displaceNearbyChicks(c.x, c.y);
 
       const guestEl = wrap.querySelector('.guest');
@@ -1109,9 +1253,37 @@ function showMascot() {
   document.addEventListener('touchend', dismiss, true);
 }
 
+// ============== TIME-OF-DAY BACKGROUND ==============
+function setTimeOfDayBackground() {
+  const hour = new Date().getHours();
+  let bg;
+  if (hour >= 5 && hour < 8)       bg = BACKGROUNDS.earlyMorning;
+  else if (hour >= 8 && hour < 17)  bg = BACKGROUNDS.day;
+  else if (hour >= 17 && hour < 20) bg = BACKGROUNDS.sunset;
+  else                               bg = BACKGROUNDS.night;
+  document.getElementById('scene-bg').src = bg;
+}
+
+// ============== SOUND TOGGLE ==============
+const SPEAKER_ON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="#7A4018" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
+const SPEAKER_OFF_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="#7A4018" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
+
+const soundBtn = document.getElementById('sound-toggle');
+function updateSoundBtn() {
+  soundBtn.innerHTML = soundEnabled ? SPEAKER_ON_SVG : SPEAKER_OFF_SVG;
+  soundBtn.title = soundEnabled ? 'Mute sounds' : 'Unmute sounds';
+}
+soundBtn.addEventListener('click', () => {
+  soundEnabled = !soundEnabled;
+  localStorage.setItem('bbq:sound-enabled', String(soundEnabled));
+  updateSoundBtn();
+});
+updateSoundBtn();
+
 // ============== INIT ==============
 (async function init() {
   try {
+    setTimeOfDayBackground();
     myToken = getOrCreateToken();
     await loadGuests();
     renderGuests();
