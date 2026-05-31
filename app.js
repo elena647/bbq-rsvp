@@ -377,7 +377,7 @@ function constrainToYard(x, y) {
 function isUIElement(el) {
   return el.closest('.invite-card') || el.closest('.modal-backdrop') ||
          el.closest('.test-panel') || el.closest('.loading-overlay') ||
-         el.closest('.error-overlay');
+         el.closest('.error-overlay') || el.closest('.sound-toggle');
 }
 
 function onYardPointerDown(e) {
@@ -1273,7 +1273,8 @@ function updateSoundBtn() {
   soundBtn.innerHTML = soundEnabled ? SPEAKER_ON_SVG : SPEAKER_OFF_SVG;
   soundBtn.title = soundEnabled ? 'Mute sounds' : 'Unmute sounds';
 }
-soundBtn.addEventListener('click', () => {
+soundBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
   soundEnabled = !soundEnabled;
   localStorage.setItem('bbq:sound-enabled', String(soundEnabled));
   updateSoundBtn();
