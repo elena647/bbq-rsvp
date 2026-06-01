@@ -349,6 +349,8 @@ function updateTooltipAnchor(wrapEl, xPct) {
 const wanderPaused = new Set();
 let justDragged = false;
 let lastTapTime = 0;
+let tappedOtherChick = null;
+let tapPointerStart = null;
 
 const dragState = {
   active: false,
@@ -381,7 +383,13 @@ function isUIElement(el) {
 function onYardPointerDown(e) {
   if (isUIElement(e.target)) return;
   const chickWrap = e.target.closest('.guest-wrap');
-  if (chickWrap && !chickWrap.classList.contains('my-chick')) return;
+  if (chickWrap && !chickWrap.classList.contains('my-chick')) {
+    e.preventDefault();
+    tappedOtherChick = chickWrap;
+    const pos = getPointerPos(e);
+    tapPointerStart = { x: pos.pageX, y: pos.pageY };
+    return;
+  }
   if (!findMyRsvp()) return;
   const wrap = document.querySelector('.guest-wrap.my-chick');
   if (!wrap) return;
@@ -411,7 +419,7 @@ function onPointerMove(e) {
   const pos = getPointerPos(e);
   const dx = pos.pageX - dragState.pointerStartX;
   const dy = pos.pageY - dragState.pointerStartY;
-  if (Math.abs(dx) > 5 || Math.abs(dy) > 5) dragState.moved = true;
+  if (Math.abs(dx) > 10 || Math.abs(dy) > 10) dragState.moved = true;
 
   const rect = document.getElementById('bbq-app').getBoundingClientRect();
   const dxPct = (dx / rect.width) * 100;
@@ -425,7 +433,24 @@ function onPointerMove(e) {
   displaceNearbyChicks(c.x, c.y);
 }
 
-function onPointerUp() {
+function onPointerUp(e) {
+  if (tappedOtherChick) {
+    const wrap = tappedOtherChick;
+    tappedOtherChick = null;
+    if (tapPointerStart) {
+      const pos = e.changedTouches ? e.changedTouches[0] : e;
+      const dx = pos.pageX - tapPointerStart.x;
+      const dy = pos.pageY - tapPointerStart.y;
+      tapPointerStart = null;
+      if (Math.abs(dx) <= 10 && Math.abs(dy) <= 10) {
+        document.querySelectorAll('.guest-wrap.show-tooltip').forEach(el => {
+          if (el !== wrap) el.classList.remove('show-tooltip');
+        });
+        wrap.classList.toggle('show-tooltip');
+      }
+    }
+    return;
+  }
   if (!dragState.active) return;
   const wrap = dragState.wrapEl;
   const moved = dragState.moved;
@@ -532,7 +557,7 @@ function smashLand(wrapEl) {
       pushY = (dy / dist) * SMASH_NUDGE;
     }
 
-    const newPos = constrainToYard(gPos.x + pushX, gPos.y + pushY);
+    const newPos = redirectPush(gPos, pushX, pushY, SMASH_NUDGE);
     const wrap = document.querySelector(`.guest-wrap[data-token="${g.token}"]`);
     if (!wrap) continue;
 
@@ -613,6 +638,32 @@ const SMASH_RADIUS = PERSONAL_SPACE * 1.5;
 const displacedTokens = new Set();
 const pushTimeouts = new Map();
 
+function redirectPush(pos, pushX, pushY, nudgeAmount) {
+  const proposedX = pos.x + pushX;
+  const proposedY = pos.y + pushY;
+  const outX = proposedX < YARD.xMin || proposedX > YARD.xMax;
+  const outY = proposedY < YARD.yMin || proposedY > YARD.yMax;
+
+  if (outX && outY) {
+    // Both axes blocked — prefer horizontal
+    const hDir = pushX > 0.1 ? 1 : pushX < -0.1 ? -1 : (Math.random() < 0.5 ? -1 : 1);
+    const hPos = constrainToYard(pos.x + hDir * nudgeAmount, pos.y);
+    if (Math.abs(hPos.x - pos.x) > 0.01) return hPos;
+    // Horizontal also stuck — try vertical
+    const vDir = pushY > 0.1 ? 1 : pushY < -0.1 ? -1 : (Math.random() < 0.5 ? -1 : 1);
+    return constrainToYard(pos.x, pos.y + vDir * nudgeAmount);
+  }
+  if (outY) {
+    const dir = pushX > 0.1 ? 1 : pushX < -0.1 ? -1 : (Math.random() < 0.5 ? -1 : 1);
+    return constrainToYard(pos.x + dir * nudgeAmount, pos.y);
+  }
+  if (outX) {
+    const dir = pushY > 0.1 ? 1 : pushY < -0.1 ? -1 : (Math.random() < 0.5 ? -1 : 1);
+    return constrainToYard(pos.x, pos.y + dir * nudgeAmount);
+  }
+  return constrainToYard(proposedX, proposedY);
+}
+
 function displaceNearbyChicks(myX, myY) {
   for (const g of guests) {
     if (g.token === myToken) continue;
@@ -635,7 +686,7 @@ function displaceNearbyChicks(myX, myY) {
       pushY = (dy / dist) * NUDGE_AMOUNT;
     }
 
-    const newPos = constrainToYard(pos.x + pushX, pos.y + pushY);
+    const newPos = redirectPush(pos, pushX, pushY, NUDGE_AMOUNT);
 
     // Loose chain-reaction check — only block if very close to another chick
     let blocked = false;
@@ -739,15 +790,6 @@ function renderGuests() {
 
     wrap.addEventListener('mouseenter', () => wrap.classList.add('show-tooltip'));
     wrap.addEventListener('mouseleave', () => wrap.classList.remove('show-tooltip'));
-    wrap.addEventListener('click', (e) => {
-      if (justDragged) { justDragged = false; return; }
-      if (g.token === myToken) return;
-      e.stopPropagation();
-      document.querySelectorAll('.guest-wrap.show-tooltip').forEach(el => {
-        if (el !== wrap) el.classList.remove('show-tooltip');
-      });
-      wrap.classList.toggle('show-tooltip');
-    });
 
     if (g.token === myToken) {
       wrap.classList.add('my-chick');
