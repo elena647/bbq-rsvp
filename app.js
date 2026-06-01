@@ -233,8 +233,6 @@ let currentChoice = { clothes: 'none', hat: 'none' };
 let guests = [];
 const positions = new Map();
 let myToken = null;
-let soundEnabled = localStorage.getItem('bbq:sound-enabled') !== 'false';
-
 // ============== TOKEN (browser-stored, used to identify the current user) ==============
 function getOrCreateToken() {
   let token = localStorage.getItem(TOKEN_KEY);
@@ -377,7 +375,7 @@ function constrainToYard(x, y) {
 function isUIElement(el) {
   return el.closest('.invite-card') || el.closest('.modal-backdrop') ||
          el.closest('.test-panel') || el.closest('.loading-overlay') ||
-         el.closest('.error-overlay') || el.closest('.sound-toggle');
+         el.closest('.error-overlay');
 }
 
 function onYardPointerDown(e) {
@@ -402,7 +400,6 @@ function onYardPointerDown(e) {
   dragState.moved = false;
 
   wanderPaused.add(myToken);
-  chirpedThisSession = false;
   wrap.classList.add('dragging');
   wrap.style.transition = 'none';
   displacedTokens.clear();
@@ -476,7 +473,6 @@ function doJump(wrapEl) {
 }
 
 function doSmash(wrapEl) {
-  chirpedThisSession = false;
   wrapEl.classList.remove('jumping', 'smash-rising', 'smash-hovering', 'smashing');
   void wrapEl.offsetWidth;
 
@@ -540,7 +536,6 @@ function smashLand(wrapEl) {
     const wrap = document.querySelector(`.guest-wrap[data-token="${g.token}"]`);
     if (!wrap) continue;
 
-    playChirp();
     createDustPuff(wrap);
 
     wrap.classList.add('being-smashed');
@@ -618,43 +613,6 @@ const SMASH_RADIUS = PERSONAL_SPACE * 1.5;
 const displacedTokens = new Set();
 const pushTimeouts = new Map();
 
-// ============== CHIRP SOUND ==============
-let audioCtx = null;
-let chirpedThisSession = false;
-
-function playChirp() {
-  if (!soundEnabled) return;
-  if (chirpedThisSession) return;
-  chirpedThisSession = true;
-
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-  const ctx = audioCtx;
-  const t = ctx.currentTime;
-
-  function chirp(start) {
-    const osc = ctx.createOscillator();
-    const filter = ctx.createBiquadFilter();
-    const gain = ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(2000, start);
-    osc.frequency.exponentialRampToValueAtTime(3500, start + 0.06);
-    filter.type = 'bandpass';
-    filter.frequency.value = 2500;
-    filter.Q.value = 5;
-    gain.gain.setValueAtTime(0, start);
-    gain.gain.linearRampToValueAtTime(0.15, start + 0.005);
-    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.06);
-    osc.connect(filter).connect(gain).connect(ctx.destination);
-    osc.start(start);
-    osc.stop(start + 0.06);
-  }
-
-  chirp(t);
-  chirp(t + 0.14);
-}
-
-
 function displaceNearbyChicks(myX, myY) {
   for (const g of guests) {
     if (g.token === myToken) continue;
@@ -689,7 +647,6 @@ function displaceNearbyChicks(myX, myY) {
       if (Math.sqrt(odx * odx + ody * ody) < PERSONAL_SPACE / 2) { blocked = true; break; }
     }
     if (blocked) continue;
-    playChirp();
 
     const wrap = document.querySelector(`.guest-wrap[data-token="${g.token}"]`);
     if (!wrap) continue;
@@ -1129,7 +1086,6 @@ function startWalkLoop() {
   const wrap = document.querySelector('.guest-wrap.my-chick');
   if (!wrap) return;
   wanderPaused.add(myToken);
-  chirpedThisSession = false;
   wrap.style.transition = 'none';
   displacedTokens.clear();
 
@@ -1263,23 +1219,6 @@ function setTimeOfDayBackground() {
   else                               bg = BACKGROUNDS.night;
   document.getElementById('scene-bg').src = bg;
 }
-
-// ============== SOUND TOGGLE ==============
-const SPEAKER_ON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="#7A4018" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
-const SPEAKER_OFF_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="#7A4018" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
-
-const soundBtn = document.getElementById('sound-toggle');
-function updateSoundBtn() {
-  soundBtn.innerHTML = soundEnabled ? SPEAKER_ON_SVG : SPEAKER_OFF_SVG;
-  soundBtn.title = soundEnabled ? 'Mute sounds' : 'Unmute sounds';
-}
-soundBtn.addEventListener('click', (e) => {
-  e.stopPropagation();
-  soundEnabled = !soundEnabled;
-  localStorage.setItem('bbq:sound-enabled', String(soundEnabled));
-  updateSoundBtn();
-});
-updateSoundBtn();
 
 // ============== INIT ==============
 (async function init() {
