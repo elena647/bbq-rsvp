@@ -26,6 +26,7 @@ const WELCOME_MESSAGE = "We're firing up the grill for Elena's birthday and have
 
 const MAX_GUESTS = 50;
 const TOKEN_KEY = 'bbq:my-token';
+const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
 // ============== AVATAR DEFINITIONS ==============
 const Y_OFFSET = 8;
@@ -788,8 +789,10 @@ function renderGuests() {
 
     updateTooltipAnchor(wrap, home.x);
 
-    wrap.addEventListener('mouseenter', () => wrap.classList.add('show-tooltip'));
-    wrap.addEventListener('mouseleave', () => wrap.classList.remove('show-tooltip'));
+    if (!isTouchDevice) {
+      wrap.addEventListener('mouseenter', () => wrap.classList.add('show-tooltip'));
+      wrap.addEventListener('mouseleave', () => wrap.classList.remove('show-tooltip'));
+    }
 
     if (g.token === myToken) {
       wrap.classList.add('my-chick');
